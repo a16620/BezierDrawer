@@ -229,6 +229,18 @@
                     
                     CleanCanvas();
                     RenderAsBezier();
+                    if (lines.currentLine.length != 0) {
+                        lineRender.DrawLines(lines.currentLine);
+                        bezierRender.Draw(lines.currentLine.concat(mousePos));
+                        var prev = lines.LastPoint();
+                        render.DrawSelectedPoint(mousePos);
+                        if (prev != null) {
+                            render.DrawLine(prev, mousePos);
+                        }
+                        else {
+                            render.DrawPoint(mousePos);
+                        }
+                    }
                 });
             }
             else {
