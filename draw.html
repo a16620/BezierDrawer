@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+    <head>
+        <meta charset="utf-8"/>
+        <script type="application/javascript" src="point.js"></script>
+        <style>
+            canvas {
+                position: absolute;
+                left: 50%;
+                right: 50%;
+                transform: translate(-50%, 0);
+                border: 2px solid black;
+            }
+
+            div {
+                position: fixed;
+                bottom: 10px;
+            }
+
+            #btn_erase_all {
+                margin-left: 30px;
+            }
+        </style>
+    </head>
+    <body>
+        <canvas id="canvas" oncontextmenu='return false'>
+            <h1>브라우저가 캔버스를 지원하지 않습니다.</h1>
+        </canvas>
+        <div>
+            <button id="btn_mode">그리기모드</button><button id="btn_view_bezier" disabled>베지어 보이기</button><button id="btn_erase_all">초기화</button>
+        </div>
+        <script>
+            var canvas = document.getElementById("canvas");
+
+            function setCanvasFullScreen() {
+                canvas.setAttribute('width', window.innerWidth-32);
+                canvas.setAttribute('height', window.innerHeight-64);
+            }
+            
+            function CleanCanvas() {
+                let prevStyle = ctx.fillStyle;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0,0, canvas.width, canvas.height);
+                ctx.fillStyle = prevStyle;
+            }
+
+            function RenderAsBezier() {
+                lines.lineList.forEach(line => {
+                    bezierRender.Draw(line);                        
+                });
+            }
+
+            function RenderAsPoly() {
+                lines.lineList.forEach(line => {
+                    lineRender.DrawLines(line);                        
+                });
+            }
+
+            var isEditing = false;
+            var selectedPoint = null;
+            var showBezier = false;
+
+            var isDrawing = false;
+            var mousePos = null;
+            function onMouseDown(event) {
+                if (isEditing) {
+                    if (event.button == 0) {
+                        const x = event.offsetX;
+                        const y = event.offsetY;
+                        selectedPoint = lines.SearchOne(new Point(x, y), 6);
+                        if (selectedPoint != null) {
+                            render.DrawSelectedPoint(selectedPoint);
+                        }
+                    }
+                    else {
+                        const x = event.offsetX;
+                        const y = event.offsetY;
+                        points = lines.SearchAll(new Point(x, y), 6);
+                        lines.Remove(points);
+                    }
+                    return;
+                }
+
+                if (event.button == 0) {
+                    isDrawing = true;
+
+                    const x = event.offsetX;
+                    const y = event.offsetY;
+                    mousePos = new Point(x, y);
+
+                    var prev = lines.LastPoint();
+                    render.DrawPoint(mousePos);
+                    if (prev != null) {
+                        render.DrawLine(prev, mousePos);
+                    }
+                }
+                else {
+                    lines.End();
+
+                    CleanCanvas();
+                    RenderAsBezier();
+                }
+            }
+
+            function onMouseUp(event) {
+                if (isEditing) {
+                    selectedPoint = null;
+                    return;
+                }
+
+                if (isDrawing) {
+                    isDrawing = false;
+                    render.DrawPoint(mousePos);
+                    lines.Add(mousePos);
+                    render.DrawSelectedPoint(mousePos);
+                }
+            }
+
+            function onMouseMove(event) {
+                if (isEditing) {
+                    CleanCanvas();
+                    RenderAsPoly();
+                    if (showBezier) {
+                        RenderAsBezier();
+                    }
+
+                    if (selectedPoint == null) {
+                        const x = event.offsetX;
+                        const y = event.offsetY;
+                        render.DrawSelectorSpot(new Point(x, y));
+                    }
+                    else {
+                        const x = event.offsetX;
+                        const y = event.offsetY;
+                        selectedPoint.x = x;
+                        selectedPoint.y = y;
+                        render.DrawSelectedPoint(selectedPoint);
+                    }
+                    return;
+                }
+
+                if (isDrawing) {
+                    mousePos.x = event.offsetX;
+                    mousePos.y = event.offsetY;
+                    CleanCanvas();
+                    lineRender.DrawLines(lines.currentLine);
+                    RenderAsBezier();
+
+                    var prev = lines.LastPoint();
+                    render.DrawSelectedPoint(mousePos);
+                    if (prev != null) {
+                        render.DrawLine(prev, mousePos);
+                    }
+                    else {
+                        render.DrawPoint(mousePos);
+                    }
+                }
+            }
+
+            function EditmodeOn() {
+                if (lines.LastPoint() != null) {
+                    lines.End();
+                }
+                isEditing = true;
+                CleanCanvas();
+                RenderAsPoly();
+                if (showBezier) {
+                    RenderAsBezier();
+                }
+            }
+
+            function QuitEditmode() {
+                selectedPoint = null;
+                isEditing = false;
+                CleanCanvas();
+                RenderAsBezier();
+            }
+
+            if (canvas.getContext) {
+                setCanvasFullScreen();
+                window.addEventListener('resize', setCanvasFullScreen);
+                canvas.addEventListener('mousedown', onMouseDown);
+                canvas.addEventListener('mouseup', onMouseUp);
+                canvas.addEventListener('mousemove', onMouseMove);
+                var ctx = canvas.getContext('2d');
+
+                btn_mode = document.getElementById("btn_mode");
+                btn_view_bezier = document.getElementById("btn_view_bezier");
+                btn_erase_all = document.getElementById("btn_erase_all");
+                btn_mode.addEventListener('click', function() {
+                    if (!isEditing) {
+                        EditmodeOn();
+                        btn_view_bezier.disabled = false;
+                        btn_mode.innerText = '편집모드';
+                    }
+                    else {
+                        QuitEditmode();
+                        btn_view_bezier.disabled = true;
+                        btn_mode.innerText = '그리기모드';
+                    }
+                });
+                btn_view_bezier.addEventListener('click', function() {
+                    if (showBezier) {
+                        showBezier = false;
+                        btn_view_bezier.innerText = '베지어 보이기';
+                        CleanCanvas();
+                        RenderAsPoly();
+                    }
+                    else {
+                        showBezier = true;
+                        btn_view_bezier.innerText = '베지어 감추기';
+                        CleanCanvas();
+                        RenderAsPoly();
+                        RenderAsBezier();
+                    }
+                });
+                btn_erase_all.addEventListener('click', function() {
+                    isDrawing = false;
+                    lines.currentLine = [];
+                    lines.lineList = [];
+                    CleanCanvas();
+                });
+            }
+            else {
+                //캔버스 지원 불가
+            }
+
+            var lines = new LineContainer();
+            var render = new PrimitiveObjectRender(ctx);
+            var lineRender = new MultiLineRender(ctx, render);
+            var bezierRender = new BezierCurveRender(ctx, render);
+        </script>
+    </body>
+</html>
